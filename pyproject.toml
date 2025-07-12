@@ -1,6 +1,6 @@
 [project]
 name = "pytoolkit-result"
-version = "v2025.07.12"
+version = "v2025.07.12.01"
 description = "Rust-inspired Result type for Python with type safety and functional programming features"
 readme = "README.md"
 requires-python = ">=3.13"
