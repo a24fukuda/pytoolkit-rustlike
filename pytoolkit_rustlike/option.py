@@ -41,7 +41,7 @@ class Option(ABC, Generic[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    def is_none(self) -> bool:
+    def is_nothing(self) -> bool:
         raise NotImplementedError()
 
     @abstractmethod
@@ -112,7 +112,7 @@ class Some(Option[T]):
     def is_some(self) -> bool:
         return True
 
-    def is_none(self) -> bool:
+    def is_nothing(self) -> bool:
         return False
 
     def unwrap(self) -> T:
@@ -169,7 +169,7 @@ class Nothing(Option[T]):
     def is_some(self) -> bool:
         return False
 
-    def is_none(self) -> bool:
+    def is_nothing(self) -> bool:
         return True
 
     def unwrap(self) -> T:

@@ -1,4 +1,4 @@
-# pytoolkit-result
+# pytoolkit-rustlike
 
 型安全性と関数型プログラミング機能を備えた、Rust風のResult型とOption型のPython実装
 
@@ -6,7 +6,7 @@
 
 このライブラリは、関数型プログラミングにおけるエラーハンドリングとnull安全性のための2つの主要な型を提供します：
 
-- **Result型**: 成功した値（`Ok[T]`）またはエラー（`Err[T]`）のいずれかを表現し、予期されるエラー条件に対して例外を避けることで、エラーハンドリングをより明示的で型安全にします。
+- **Result型**: 成功した値（`Ok[T]`）またはエラー（`Err[T, E]`）のいずれかを表現し、予期されるエラー条件に対して例外を避けることで、エラーハンドリングをより明示的で型安全にします。
 - **Option型**: 値を含む（`Some[T]`）か値の不在（`Nothing`）を表現し、null値の処理をより明示的で型安全にします。
 
 ## 機能
@@ -41,25 +41,25 @@ uv sync
 ### Result型の基本的な使用方法
 
 ```python
-from pytoolkit_result.result import Ok, Err, Result
+from pytoolkit_rustlike import Ok, Err, Result
 
 # 成功の結果を作成
-success: Result[int] = Ok(42)
+success: Result[int, Exception] = Ok(42)
 print(success.is_ok())        # True
 print(success.unwrap())       # 42
 print(success.unwrap_or(0))   # 42
 
 # エラーの結果を作成
-error: Result[int] = Err(ValueError("何かが間違っています"))
+error: Result[int, ValueError] = Err(ValueError("何かが間違っています"))
 print(error.is_ok())          # False
 print(error.unwrap_or(0))     # 0
-# error.unwrap()              # ValueError が発生
+# error.unwrap()              # UnwrapError が発生
 ```
 
 ### Option型の基本的な使用方法
 
 ```python
-from pytoolkit_result.result import Some, Nothing, Option
+from pytoolkit_rustlike import Some, Nothing, Option
 
 # 値を持つオプションを作成
 some_value: Option[int] = Some(42)
@@ -70,8 +70,9 @@ print(some_value.unwrap_or(0))     # 42
 # 空のオプションを作成
 nothing: Option[int] = Nothing()
 print(nothing.is_some())           # False
+print(nothing.is_nothing())        # True
 print(nothing.unwrap_or(0))        # 0
-# nothing.unwrap()                 # ValueError が発生
+# nothing.unwrap()                 # UnwrapError が発生
 ```
 
 ### Result型の関数型操作
@@ -82,14 +83,14 @@ result = Ok(10).map(lambda x: x * 2)
 print(result.unwrap())  # 20
 
 # ErrでのmapはそのままErrを返す
-error_result = Err[int](ValueError("エラー")).map(lambda x: x * 2)
-print(error_result.is_error())  # True
+error_result = Err[int, ValueError](ValueError("エラー")).map(lambda x: x * 2)
+print(error_result.is_err())  # True
 
 # and_thenで操作をチェーン
-def divide_by_two(x: int) -> Result[float]:
+def divide_by_two(x: int) -> Result[float, Exception]:
     return Ok(x / 2.0)
 
-def to_string(x: float) -> Result[str]:
+def to_string(x: float) -> Result[str, Exception]:
     return Ok(str(x))
 
 result = Ok(10).and_then(divide_by_two).and_then(to_string)
@@ -105,7 +106,7 @@ print(option.unwrap())  # 20
 
 # NothingでのmapはNothingを返す
 nothing_result = Nothing[int]().map(lambda x: x * 2)
-print(nothing_result.is_none())  # True
+print(nothing_result.is_nothing())  # True
 
 # and_thenで操作をチェーン
 def divide_by_two(x: int) -> Option[float]:
@@ -121,9 +122,9 @@ print(result.unwrap())  # "5.0"
 ### エラーハンドリングパターン
 
 ```python
-def safe_divide(a: int, b: int) -> Result[float]:
+def safe_divide(a: int, b: int) -> Result[float, ValueError]:
     if b == 0:
-        return Err[float](ValueError("ゼロ除算"))
+        return Err(ValueError("ゼロ除算"))
     return Ok(a / b)
 
 # 結果を処理
@@ -144,7 +145,7 @@ print(value)  # 0.0
 # 複数の操作をチェーン
 result = (Ok(100)
     .map(lambda x: x // 2)        # 50
-    .and_then(lambda x: Ok(x - 10) if x > 10 else Err[int](ValueError("小さすぎます")))  # 40
+    .and_then(lambda x: Ok(x - 10) if x > 10 else Err(ValueError("小さすぎます")))  # 40
     .map(lambda x: x * 2))        # 80
 
 print(result.unwrap())  # 80
@@ -152,32 +153,96 @@ print(result.unwrap())  # 80
 
 ## APIリファレンス
 
-### Result[T]（抽象基底クラス）
+### Result[T, E]（抽象基底クラス）
+
+成功値(T)またはエラー値(E)のいずれかを表現する型です。
+
+#### 基本メソッド
 
 - `is_ok() -> bool`: これがOk値の場合にTrueを返す
-- `is_error() -> bool`: これがErr値の場合にTrueを返す
-- `unwrap() -> T`: 値を返すかエラーを発生させる
-- `unwrap_or(default: T) -> T`: 値またはデフォルト値を返す
-- `map(f: Callable[[T], U]) -> Result[U]`: Okの場合に値を変換
-- `and_then(f: Callable[[T], Result[U]]) -> Result[U]`: Result返却操作をチェーン
-- `match(ok: Callable[[T], U], err: Callable[[Exception], U]) -> U`: パターンマッチング
+- `is_err() -> bool`: これがErr値の場合にTrueを返す
+- `unwrap() -> T`: Ok値を返すか、UnwrapError例外を発生させる
+- `unwrap_or(default: T) -> T`: Ok値またはデフォルト値を返す
+- `expect(msg: str) -> T`: Ok値を返すか、カスタムメッセージでRuntimeErrorを発生させる
+- `unwrap_err() -> E`: Err値を返すか、RuntimeErrorを発生させる
+- `expect_err(msg: str) -> E`: Err値を返すか、カスタムメッセージでRuntimeErrorを発生させる
 
-#### Ok[T]
+#### 変換メソッド
+
+- `map(f: Callable[[T], U]) -> Result[U, E]`: Okの場合に値を変換
+- `map_err(f: Callable[[E], F]) -> Result[T, F]`: Errの場合にエラーを変換
+- `map_or(default: U, f: Callable[[T], U]) -> U`: Okの場合は変換、Errの場合はデフォルト値
+- `map_or_else(err_f: Callable[[E], U], ok_f: Callable[[T], U]) -> U`: Ok/Errに応じて異なる関数を適用
+
+#### チェーンメソッド
+
+- `and_then(f: Callable[[T], Result[U, E]]) -> Result[U, E]`: Okの場合にResultを返す関数をチェーン
+- `or_else(f: Callable[[E], Result[T, F]]) -> Result[T, F]`: Errの場合にResultを返す関数をチェーン
+- `unwrap_or_else(f: Callable[[E], T]) -> T`: Errの場合に関数を実行してデフォルト値を取得
+
+#### 論理演算メソッド
+
+- `and_(res: Result[U, E]) -> Result[U, E]`: 両方がOkの場合に第二引数のResultを返す
+- `or_(res: Result[T, F]) -> Result[T, F]`: 第一引数がOkなら第一引数、Errなら第二引数を返す
+
+#### デバッグ・観察メソッド
+
+- `inspect(f: Callable[[T], None]) -> Result[T, E]`: Okの場合に副作用関数を実行
+- `inspect_err(f: Callable[[E], None]) -> Result[T, E]`: Errの場合に副作用関数を実行
+
+#### イテレータ・パターンマッチング
+
+- `__iter__() -> Iterator[T]`: Okの場合は値を1つ含むイテレータ、Errの場合は空のイテレータ
+- `match(ok: Callable[[T], U], err: Callable[[E], U]) -> U`: パターンマッチング
+
+#### Ok[T, E]
 
 型Tの値を含む成功した結果を表現します。
 
-#### Err[T]
+#### Err[T, E]
 
-例外を含むエラー結果を表現します。
+型Eのエラー値を含むエラー結果を表現します。
 
 ### Option[T]（抽象基底クラス）
 
+値の存在または不在を型安全に表現する型です。
+
+#### 基本メソッド
+
 - `is_some() -> bool`: 値を含む場合にTrueを返す
-- `is_none() -> bool`: 値を含まない場合にTrueを返す
-- `unwrap() -> T`: 値を返すか、ValueErrorを発生させる
-- `unwrap_or(default: T) -> T`: 値またはデフォルト値を返す
+- `is_nothing() -> bool`: 値を含まない場合にTrueを返す
+- `unwrap() -> T`: Some値を返すか、UnwrapError例外を発生させる
+- `unwrap_or(default: T) -> T`: Some値またはデフォルト値を返す
+- `expect(msg: str) -> T`: Some値を返すか、カスタムメッセージでUnwrapError例外を発生させる
+- `unwrap_or_else(f: Callable[[], T]) -> T`: Nothingの場合に関数を実行してデフォルト値を取得
+
+#### 変換メソッド
+
 - `map(f: Callable[[T], U]) -> Option[U]`: Someの場合に値を変換
-- `and_then(f: Callable[[T], Option[U]]) -> Option[U]`: Option返却操作をチェーン
+- `map_or(default: U, f: Callable[[T], U]) -> U`: Someの場合は変換、Nothingの場合はデフォルト値
+- `map_or_else(default_f: Callable[[], U], f: Callable[[T], U]) -> U`: Some/Nothingに応じて異なる関数を適用
+
+#### チェーンメソッド
+
+- `and_then(f: Callable[[T], Option[U]]) -> Option[U]`: SomeでOptionを返す関数をチェーン
+- `or_else(f: Callable[[], Option[T]]) -> Option[T]`: Nothingの場合にOptionを返す関数をチェーン
+
+#### フィルタリング
+
+- `filter(predicate: Callable[[T], bool]) -> Option[T]`: 条件を満たすSomeのみを通す
+
+#### 論理演算メソッド
+
+- `and_(optb: Option[U]) -> Option[U]`: 両方がSomeの場合に第二引数のOptionを返す
+- `or_(optb: Option[T]) -> Option[T]`: 第一引数がSomeなら第一引数、Nothingなら第二引数を返す
+
+#### デバッグ・観察メソッド
+
+- `inspect(f: Callable[[T], None]) -> Option[T]`: Someの場合に副作用関数を実行
+
+#### イテレータ・パターンマッチング
+
+- `__iter__() -> Iterator[T]`: Someの場合は値を1つ含むイテレータ、Nothingの場合は空のイテレータ
 - `match(some: Callable[[T], U], nothing: Callable[[], U]) -> U`: パターンマッチング
 
 #### Some[T]
@@ -187,6 +252,24 @@ print(result.unwrap())  # 80
 #### Nothing[T]
 
 値を含まないOptionを表現します。
+
+### UnwrapError
+
+`unwrap()`や`expect()`メソッドで発生する例外です。元のエラー値へのアクセスは提供せず、シンプルな例外種別として機能します。元のエラー値が必要な場合は`unwrap_err()`や`match()`メソッドを使用してください。
+
+```python
+from pytoolkit_rustlike import Err, UnwrapError
+
+# UnwrapErrorをキャッチ
+try:
+    Err(ValueError("original error")).unwrap()
+except UnwrapError as e:
+    print(f"UnwrapErrorが発生: {e}")
+    # 元のエラー値にアクセスするには unwrap_err() を使用
+    err_result = Err(ValueError("original error"))
+    original_error = err_result.unwrap_err()
+    print(f"元のエラー: {original_error}")
+```
 
 ## 開発
 

@@ -224,7 +224,7 @@ class Err(Result[T, E]):
         return True
 
     def unwrap(self) -> T:
-        raise UnwrapError(self._error)
+        raise UnwrapError("Called unwrap on Err value")
 
     def unwrap_or(self, default: T) -> T:
         return default
