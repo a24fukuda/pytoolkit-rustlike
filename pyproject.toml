@@ -1,6 +1,6 @@
 [project]
 name = "pytoolkit-rustlike"
-version = "v2025.07.13.02"
+version = "v2025.07.14.01"
 description = "Rust-inspired Result and Option types for Python with type safety and functional programming features"
 readme = "README.md"
 requires-python = ">=3.13"
