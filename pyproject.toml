@@ -17,6 +17,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pytoolkit_rustlike"]
+# include = ["pytoolkit_rustlike/py.typed"]
 
 [tool.ruff]
 target-version = "py313"
