@@ -216,3 +216,23 @@ class Nothing(Option[T]):
 
     def match(self, some: Callable[[T], U], nothing: Callable[[], U]) -> U:
         return nothing()
+
+
+def as_option(value: T | None) -> Option[T]:
+    """
+    値をOption型に変換します。
+    Noneの場合はNothing、そうでない場合はSomeを返します。
+    """
+    if value is None:
+        return Nothing[T]()
+    else:
+        return Some(value)
+
+
+def some(value: T | None) -> Option[T]:
+    """
+    値をSome型のOptionに変換します。
+    """
+    if value is None:
+        raise ValueError("Cannot create Some with None value")
+    return Some(value)

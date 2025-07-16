@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from pytoolkit_rustlike import Nothing, Option, Some, UnwrapError
+from pytoolkit_rustlike import Nothing, Option, Some, UnwrapError, as_option, some
 
 
 class TestOption:
@@ -138,7 +138,6 @@ class TestSome:
         assert result == 84
 
 
-
 class TestNothing:
     """Nothingクラスのテスト"""
 
@@ -260,6 +259,109 @@ class TestNothing:
         assert nothing1 != nothing2
 
 
+class TestAsOption:
+    """as_option関数のテスト"""
+
+    def test_as_option_with_value(self):
+        result = as_option(42)
+        assert result.is_some()
+        assert result.unwrap() == 42
+
+    def test_as_option_with_none(self):
+        result: Option[Any] = as_option(None)
+        assert result.is_nothing()
+
+    def test_as_option_with_string(self):
+        result = as_option("hello")
+        assert result.is_some()
+        assert result.unwrap() == "hello"
+
+    def test_as_option_with_empty_string(self):
+        # 空文字列でも値として扱われる
+        result = as_option("")
+        assert result.is_some()
+        assert result.unwrap() == ""
+
+    def test_as_option_with_zero(self):
+        # 0でも値として扱われる
+        result = as_option(0)
+        assert result.is_some()
+        assert result.unwrap() == 0
+
+    def test_as_option_with_false(self):
+        # Falseでも値として扱われる
+        result = as_option(False)
+        assert result.is_some()
+        assert result.unwrap() is False
+
+    def test_as_option_chaining(self):
+        # as_optionの結果をメソッドチェーンで使用
+        result = as_option(42).map(lambda x: x * 2).unwrap_or(0)
+        assert result == 84
+
+        result = as_option(None).map(lambda x: x * 2).unwrap_or(0)  # type: ignore
+        assert result == 0
+
+
+class TestSomeFunction:
+    """some関数のテスト"""
+
+    def test_some_with_value(self):
+        result = some(42)
+        assert result.is_some()
+        assert result.unwrap() == 42
+
+    def test_some_with_string(self):
+        result = some("hello")
+        assert result.is_some()
+        assert result.unwrap() == "hello"
+
+    def test_some_with_empty_string(self):
+        # 空文字列でもSomeを作成
+        result = some("")
+        assert result.is_some()
+        assert result.unwrap() == ""
+
+    def test_some_with_zero(self):
+        # 0でもSomeを作成
+        result = some(0)
+        assert result.is_some()
+        assert result.unwrap() == 0
+
+    def test_some_with_false(self):
+        # FalseでもSomeを作成
+        result = some(False)
+        assert result.is_some()
+        assert result.unwrap() is False
+
+    def test_some_with_none_raises_error(self):
+        # Noneを渡すとValueErrorが発生（型ヒントでは許可されないが実行時チェック）
+        with pytest.raises(ValueError, match="Cannot create Some with None value"):
+            some(None)  # type: ignore # 意図的にNoneを渡してエラーをテスト
+
+    def test_some_chaining(self):
+        # some関数の結果をメソッドチェーンで使用
+        result = some(42).map(lambda x: x * 2).unwrap()
+        assert result == 84
+
+    def test_some_vs_as_option_comparison(self):
+        # someとas_optionの動作比較
+        value = 42
+
+        # 同じ値に対して同じ結果
+        some_result = some(value)
+        as_option_result = as_option(value)
+
+        assert some_result.unwrap() == as_option_result.unwrap()
+
+        # Noneに対する違い
+        as_option_none: Option[Any] = as_option(None)
+        assert as_option_none.is_nothing()
+
+        # someはNoneでエラー（型ヒントでは許可されないが実行時チェック）
+        with pytest.raises(ValueError):
+            some(None)  # type: ignore
+
 
 class TestOptionIntegration:
     """Option型の統合テスト"""
@@ -284,3 +386,55 @@ class TestOptionIntegration:
         assert results[0] == "Value: 42"
         assert results[1] == "No value"
 
+    def test_integration_with_as_option(self):
+        # as_optionと他のOption操作の統合テスト
+        values = [42, None, 0, "hello", None]
+        options = [as_option(v) for v in values]  # type: ignore
+
+        # mapで変換
+        mapped = [opt.map(lambda x: str(x).upper()) for opt in options]
+
+        assert mapped[0].unwrap() == "42"
+        assert mapped[1].is_nothing()
+        assert mapped[2].unwrap() == "0"
+        assert mapped[3].unwrap() == "HELLO"
+        assert mapped[4].is_nothing()
+
+    def test_integration_with_some_function(self):
+        # some関数と他のOption操作の統合テスト
+        values = [42, 0, "hello", False, ""]
+
+        # some関数で全てSomeに変換
+        options = [some(v) for v in values]
+
+        # 全てSomeであることを確認
+        assert all(opt.is_some() for opt in options)
+
+        # フィルタリング
+        filtered = [opt.filter(lambda x: bool(x)) for opt in options]
+
+        # 42, "hello"のみ残る（0, False, ""は除外）
+        assert filtered[0].unwrap() == 42  # 42は真
+        assert filtered[1].is_nothing()  # 0は偽
+        assert filtered[2].unwrap() == "hello"  # "hello"は真
+        assert filtered[3].is_nothing()  # Falseは偽
+        assert filtered[4].is_nothing()  # ""は偽
+
+    def test_factory_functions_comparison(self):
+        # ファクトリ関数の使い分けテスト
+        test_values = [42, "hello", 0, False, ""]
+
+        for value in test_values:
+            # someとas_optionは同じ結果（None以外）
+            some_result = some(value)
+            as_option_result = as_option(value)
+
+            assert some_result.unwrap() == as_option_result.unwrap()
+
+        # Noneの場合の違い
+        as_option_none: Option[Any] = as_option(None)
+        assert as_option_none.is_nothing()
+
+        # someはNoneを受け付けない（型ヒントでは許可されないが実行時チェック）
+        with pytest.raises(ValueError):
+            some(None)  # type: ignore
